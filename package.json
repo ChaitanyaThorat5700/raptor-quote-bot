@@ -1,0 +1,20 @@
+{
+  "name": "raptor-quote-bot",
+  "version": "1.0.0",
+  "description": "Raptor - AI powered quote estimation chatbot",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "keywords": ["chatbot", "quotation", "openai", "nodejs"],
+  "author": "Your Name",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "openai": "^4.32.0",
+    "uuid": "^9.0.1"
+  }
+}

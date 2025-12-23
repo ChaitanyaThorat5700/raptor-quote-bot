@@ -1,0 +1,21 @@
+{
+  "categories": [
+    {
+      "id": "tiles",
+      "name": "Tile Fixing",
+      "base_price_per_sqft": 80,
+      "questions": [
+        "What is the total area in square feet?",
+        "Which tile type do you want? (ceramic, vitrified, marble)",
+        "Is it floor or wall tiling?"
+      ],
+      "multipliers": {
+        "tile_type": {
+          "ceramic": 1.0,
+          "vitrified": 1.3,
+          "marble": 1.8
+        }
+      }
+    }
+  ]
+}
