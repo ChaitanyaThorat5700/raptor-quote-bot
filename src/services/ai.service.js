@@ -17,9 +17,11 @@ Return ONLY valid JSON in this format:
 
 Rules:
 - Do NOT invent values
-- Do NOT overwrite existing values
+- Do NOT overwrite existing values from session data
 - If value is not present, return null
 `;
+
+  const sessionData = session?.collectedData || {};
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -27,11 +29,12 @@ Rules:
       { role: "system", content: systemPrompt },
       {
         role: "user",
-        content: `Session data: ${JSON.stringify(session.collectedData)}\nUser message: ${message}`
+        content: `Session data: ${JSON.stringify(sessionData)}\nUser message: ${message}`
       }
     ],
     response_format: { type: "json_object" }
   });
 
-  return JSON.parse(response.choices[0].message.content);
+  const content = response?.choices?.[0]?.message?.content || "{}";
+  return JSON.parse(content);
 }
