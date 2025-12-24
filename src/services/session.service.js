@@ -6,7 +6,8 @@ export function createSession() {
   const id = crypto.randomUUID();
   sessions[id] = {
     category: null,
-    collectedData: {}
+    collectedData: {},
+    lastQuestion: null
   };
   return id;
 }
@@ -26,9 +27,12 @@ export function updateSession(id, data) {
 
 export function setCategory(id, category) {
   if (!sessions[id]) return;
-
-  // Don't overwrite once set (prevents flip-flops)
   if (!sessions[id].category) {
     sessions[id].category = category;
   }
+}
+
+export function setLastQuestion(id, question) {
+  if (!sessions[id]) return;
+  sessions[id].lastQuestion = question;
 }

@@ -16,8 +16,16 @@ Return ONLY valid JSON in this format:
 }
 
 Rules:
+- Understand natural language and synonyms
+- Normalize values:
+  - "ground floor", "flooring", "on floor" → "floor"
+  - "wall tiles", "on wall", "wall tiling" → "wall"
+  - "yes", "required", "needed", "include" → "yes"
+  - "no", "not required", "exclude" → "no"
+- Convert approximate numbers to nearest whole number
+  - e.g. "around 1200", "about 1150" → 1200 / 1150
 - Do NOT invent values
-- Do NOT overwrite existing values from session data
+- Do NOT overwrite values already present in session data
 - If value is not present, return null
 `;
 
