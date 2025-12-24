@@ -1,8 +1,6 @@
-import dotenv from "dotenv";
 import OpenAI from "openai";
 
-// Load env vars here (VERY IMPORTANT)
-dotenv.config();
+console.log("OPENAI KEY LOADED:", !!process.env.OPENAI_API_KEY);
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY

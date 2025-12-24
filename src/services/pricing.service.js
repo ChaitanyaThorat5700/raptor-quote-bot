@@ -1,11 +1,15 @@
-export function calculateEstimate(category, collectedData) {
-  let price = category.base_price_per_sqft * collectedData.area;
+export function calculateEstimate(category, data) {
+  let baseRate = 0;
 
-  if (collectedData.tile_type) {
-    const multiplier =
-      category.multipliers.tile_type[collectedData.tile_type];
-    price *= multiplier;
+  if (category.id === "tile_fixing") {
+    baseRate = data.tileType === "marble" ? 150 :
+               data.tileType === "vitrified" ? 120 : 90;
   }
 
-  return Math.round(price);
+  if (category.id === "bathroom_renovation") {
+    baseRate = 200;
+    if (data.plumbingWork === "yes") baseRate += 50;
+  }
+
+  return data.area * baseRate;
 }

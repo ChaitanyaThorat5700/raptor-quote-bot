@@ -1,20 +1,27 @@
-import { v4 as uuid } from "uuid";
+import crypto from "crypto";
 
 const sessions = {};
 
 export function createSession() {
-  const sessionId = uuid();
-  sessions[sessionId] = { collectedData: {} };
-  return sessionId;
+  const id = crypto.randomUUID();
+  sessions[id] = {
+    category: null,
+    collectedData: {}
+  };
+  return id;
 }
 
-export function getSession(sessionId) {
-  return sessions[sessionId];
+export function getSession(id) {
+  return sessions[id];
 }
 
-export function updateSession(sessionId, data) {
-  sessions[sessionId].collectedData = {
-    ...sessions[sessionId].collectedData,
+export function updateSession(id, data) {
+  sessions[id].collectedData = {
+    ...sessions[id].collectedData,
     ...data
   };
+}
+
+export function setCategory(id, category) {
+  sessions[id].category = category;
 }
