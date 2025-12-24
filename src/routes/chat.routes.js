@@ -7,6 +7,7 @@ import {
   setCategory
 } from "../services/session.service.js";
 import { getNextQuestion } from "../utils/flowManager.js";
+import { calculateQuote } from "../services/pricing.service.js";
 
 const router = express.Router();
 
@@ -18,12 +19,12 @@ router.post("/", async (req, res) => {
   try {
     const { message, sessionId } = req.body;
 
-    // Safety check
+    // 🔐 Basic validation
     if (!message || typeof message !== "string" || !message.trim()) {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    // Session handling
+    // 🔁 Session handling
     const currentSessionId = sessionId || createSession();
     const session = getSession(currentSessionId);
 
@@ -31,31 +32,32 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Invalid sessionId" });
     }
 
-    // AI analysis (IMPORTANT: pass session)
+    // 🤖 AI extraction (pass session for context)
     const aiResponse = await analyzeUserMessage(message, session);
 
-    // Save category if provided
+    // 🧠 Save category (only once)
     if (aiResponse.category) {
       setCategory(currentSessionId, aiResponse.category);
     }
 
-    // Save extracted fields (ignore category)
-    const { category, ...extractedData } = aiResponse;
+    // 🧠 Save extracted fields (ignore nulls + category)
+    const { category, ...extractedFields } = aiResponse;
 
-    // Remove nulls so we don't overwrite previously collected values
     const cleanData = {};
-    for (const [k, v] of Object.entries(extractedData)) {
-      if (v !== null && v !== undefined && v !== "") cleanData[k] = v;
+    for (const [key, value] of Object.entries(extractedFields)) {
+      if (value !== null && value !== undefined && value !== "") {
+        cleanData[key] = value;
+      }
     }
 
     if (Object.keys(cleanData).length > 0) {
       updateSession(currentSessionId, cleanData);
     }
 
-    // Re-fetch updated session
+    // 🔄 Get updated session
     const updatedSession = getSession(currentSessionId);
 
-    // Ask next question
+    // ❓ Decide next question
     const nextQuestion = getNextQuestion(updatedSession);
 
     if (nextQuestion) {
@@ -65,17 +67,22 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // ✅ All details collected
+    // 💰 All data collected → calculate quote
+    const quote = calculateQuote(
+      updatedSession.category,
+      updatedSession.collectedData
+    );
+
     return res.json({
       sessionId: currentSessionId,
-      reply:
-        "Thank you. I have collected all the details. I will now generate your quotation.",
-      collectedData: updatedSession
+      reply: "Thank you. Here is your quotation.",
+      quote
     });
+
   } catch (error) {
     console.error("Chat Route Error:", error);
     return res.status(500).json({
-      error: "Something went wrong in chat flow"
+      error: "Something went wrong while generating the quotation"
     });
   }
 });
