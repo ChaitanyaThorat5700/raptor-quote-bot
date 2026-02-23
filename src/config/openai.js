@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+  import OpenAI from "openai";
 
 console.log("OPENAI KEY LOADED:", !!process.env.OPENAI_API_KEY);
 

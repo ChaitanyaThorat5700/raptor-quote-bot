@@ -3,10 +3,10 @@
     {
       "id": "tile_fixing",
       "currency": "INR",
-      "base_price_per_sqft": 80,
+      "base_price_per_sqft": 100,
       "multipliers": {
         "tileType": {
-          "ceramic": 1.0,
+          "ceramic": 1,
           "vitrified": 1.3,
           "marble": 1.8
         }
@@ -23,5 +23,6 @@
         }
       }
     }
-  ]
+  ],
+  "last_updated": "2025-12-29T06:58:53.432Z"
 }

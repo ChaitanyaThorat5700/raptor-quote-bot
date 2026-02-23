@@ -1,26 +1,11 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-
-// Resolve path safely (ESM)
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Load pricing config once
-const pricingConfig = JSON.parse(
-  fs.readFileSync(
-    path.resolve(__dirname, "../data/products.json"),
-    "utf-8"
-  )
-);
+import { getPricingConfig } from "./pricingStore.service.js";
 
 /**
- * Calculate quotation based on category + collectedData
+ * Calculate quotation based on latest pricing config
  */
 export function calculateQuote(categoryId, data) {
-  const category = pricingConfig.categories.find(
-    (c) => c.id === categoryId
-  );
+  const pricingConfig = getPricingConfig();
+  const category = pricingConfig.categories.find(c => c.id === categoryId);
 
   if (!category) {
     throw new Error(`Pricing config not found for category: ${categoryId}`);
@@ -44,7 +29,7 @@ export function calculateQuote(categoryId, data) {
     amount: subtotal
   });
 
-  // 2️⃣ Multipliers (e.g. tileType)
+  // 2️⃣ Multipliers
   if (category.multipliers) {
     for (const [field, map] of Object.entries(category.multipliers)) {
       const selectedValue = data[field];
@@ -62,7 +47,7 @@ export function calculateQuote(categoryId, data) {
     }
   }
 
-  // 3️⃣ Add-ons (flat per sqft)
+  // 3️⃣ Add-ons
   if (category.addons) {
     for (const [field, map] of Object.entries(category.addons)) {
       const selectedValue = data[field];

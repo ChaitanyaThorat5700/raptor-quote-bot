@@ -7,13 +7,20 @@
   "scripts": {
     "start": "node src/server.js"
   },
-  "keywords": ["chatbot", "quotation", "openai", "nodejs"],
+  "keywords": [
+    "chatbot",
+    "quotation",
+    "openai",
+    "nodejs"
+  ],
   "author": "Your Name",
   "license": "ISC",
   "dependencies": {
     "body-parser": "^1.20.2",
+    "cors": "^2.8.6",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.2.1",
     "openai": "^4.32.0",
     "uuid": "^9.0.1"
   }
