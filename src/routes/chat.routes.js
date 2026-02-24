@@ -10,12 +10,16 @@ import {
 } from "../services/session.service.js";
 import { getNextQuestion } from "../utils/flowManager.js";
 import { calculateQuote } from "../services/pricing.service.js";
+import { saveQuote, getQuoteByPublicCode } from "../services/quote.service.js";
 
 const router = express.Router();
 
 /**
- * ✅ Helpers
+ * ------------------------------
+ * Helper Utilities
+ * ------------------------------
  */
+
 function ok(res, payload) {
   return res.json({ success: true, ...payload });
 }
@@ -41,7 +45,7 @@ function isValidArea(area) {
   const n = toNumber(area);
   if (!n) return false;
   if (n <= 0) return false;
-  if (n > 200000) return false; // sanity cap
+  if (n > 200000) return false;
   return true;
 }
 
@@ -57,8 +61,10 @@ function formatServiceName(categoryId) {
 }
 
 /**
+ * ---------------------------------------
  * POST /api/chat
- * Body: { message, sessionId }
+ * Main Estimator Flow
+ * ---------------------------------------
  */
 router.post("/", async (req, res) => {
   try {
@@ -76,11 +82,12 @@ router.post("/", async (req, res) => {
       const newSessionId = createSession();
       return ok(res, {
         sessionId: newSessionId,
-        reply: "Sure 🙂 Let’s start fresh. What service do you need? (Tile Fixing / Bathroom Renovation)"
+        reply:
+          "Sure 🙂 Let’s start fresh. What service do you need? (Tile Fixing / Bathroom Renovation)"
       });
     }
 
-    // Range handling (1000-1200)
+    // Range detection (1000-1200)
     const rangeMatch = message.match(/(\d+)\s*(to|-)\s*(\d+)/i);
     if (rangeMatch) {
       const sid = sessionId || createSession();
@@ -92,7 +99,7 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Session
+    // Session handling
     const currentSessionId = sessionId || createSession();
     const session = getSession(currentSessionId);
 
@@ -100,7 +107,7 @@ router.post("/", async (req, res) => {
       return fail(res, 400, "Invalid or expired sessionId. Please restart.");
     }
 
-    // AI extraction
+    // AI Extraction
     const aiResponse = await analyzeUserMessage(message, session);
 
     if (aiResponse?.category) {
@@ -116,17 +123,17 @@ router.post("/", async (req, res) => {
       }
     }
 
-    // Area fallback if AI didn't catch it
+    // Fallback area detection
     if (cleanData.area === undefined) {
       const fallbackArea = normalizeAreaCandidate(message);
       if (fallbackArea !== null) cleanData.area = fallbackArea;
     }
 
-    // Friendly area validation
     if (cleanData.area !== undefined && !isValidArea(cleanData.area)) {
       return ok(res, {
         sessionId: currentSessionId,
-        reply: "I couldn’t understand the area. Please share a valid number in square feet (e.g., 450)."
+        reply:
+          "I couldn’t understand the area. Please share a valid number in square feet (e.g., 450)."
       });
     }
 
@@ -139,17 +146,16 @@ router.post("/", async (req, res) => {
       return fail(res, 400, "Session expired. Please restart.");
     }
 
-    // Acknowledgement
     const acknowledgment =
-      Object.keys(cleanData).length >= 2 ? "Got it 👍 I’ve noted those details. " : "";
+      Object.keys(cleanData).length >= 2
+        ? "Got it 👍 I’ve noted those details. "
+        : "";
 
-    // Next question
     const nextQuestion = getNextQuestion(updatedSession);
 
     if (nextQuestion) {
       setState(currentSessionId, "COLLECTING_FIELDS");
 
-      // Anti-loop
       if (updatedSession.lastQuestion === nextQuestion) {
         const rephrased = "Let me rephrase that 🙂 " + nextQuestion;
         setLastQuestion(currentSessionId, rephrased);
@@ -157,32 +163,38 @@ router.post("/", async (req, res) => {
       }
 
       setLastQuestion(currentSessionId, nextQuestion);
+
       return ok(res, {
         sessionId: currentSessionId,
         reply: acknowledgment + nextQuestion
       });
     }
 
-    // Ensure category exists before quote
+    // Ensure category exists
     if (!updatedSession.category) {
       setState(currentSessionId, "INIT");
       return ok(res, {
         sessionId: currentSessionId,
-        reply: "Please choose a valid service first: Tile Fixing / Bathroom Renovation"
+        reply:
+          "Please choose a valid service first: Tile Fixing / Bathroom Renovation"
       });
     }
 
     setState(currentSessionId, "READY_FOR_QUOTE");
 
-    // Calculate quote safely
+    // Calculate quote
     let quote;
     try {
-      quote = calculateQuote(updatedSession.category, updatedSession.collectedData);
+      quote = await calculateQuote(
+        updatedSession.category,
+        updatedSession.collectedData
+      );
     } catch (e) {
       console.error("Quote calculation error:", e?.message || e);
       return ok(res, {
         sessionId: currentSessionId,
-        reply: "I need a valid area in square feet to calculate the quote (e.g., 450)."
+        reply:
+          "I need a valid area in square feet to calculate the quote (e.g., 450)."
       });
     }
 
@@ -190,7 +202,6 @@ router.post("/", async (req, res) => {
 
     // Professional summary
     const serviceName = formatServiceName(updatedSession.category);
-    const area = quote.area;
     const total = formatCurrency(quote.total, quote.currency);
 
     const formattedBreakdown = (quote.breakdown || [])
@@ -206,7 +217,7 @@ router.post("/", async (req, res) => {
 ━━━━━━━━━━━━━━━━━━━━━━
 
 Service: ${serviceName}
-Area: ${area} sq.ft
+Area: ${quote.area} sq.ft
 
 Breakdown:
 ${formattedBreakdown}
@@ -220,15 +231,48 @@ Note: This is an approximate estimate based on provided details.
 Final pricing may vary after site inspection.
 `.trim();
 
+    // Save to DB
+    const saved = await saveQuote(
+      updatedSession.category,
+      updatedSession.collectedData,
+      quote
+    );
+
     return ok(res, {
       sessionId: currentSessionId,
       reply: "Here is your quotation summary.",
       summary,
+      publicCode: saved.publicCode,
       quote
     });
+
   } catch (error) {
     console.error("Chat Route Error:", error);
     return fail(res, 500, "Something went wrong while generating the quotation");
+  }
+});
+
+/**
+ * ---------------------------------------
+ * GET /api/chat/quote/:publicCode
+ * Public Quote Retrieval
+ * ---------------------------------------
+ */
+router.get("/quote/:publicCode", async (req, res) => {
+  try {
+    const { publicCode } = req.params;
+
+    const quote = await getQuoteByPublicCode(publicCode);
+
+    if (!quote) {
+      return fail(res, 404, "Quote not found");
+    }
+
+    return ok(res, { quote });
+
+  } catch (error) {
+    console.error("Fetch quote error:", error);
+    return fail(res, 500, "Failed to fetch quote");
   }
 });
 

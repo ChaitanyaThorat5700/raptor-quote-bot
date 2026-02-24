@@ -3,20 +3,28 @@ import "./bootstrap.js"; // MUST be first
 import express from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
+import adminLeadRoutes from "./routes/admin.leads.routes.js";
+
+import pool from "./config/db.js";
 
 import chatRoutes from "./routes/chat.routes.js";
 import adminPricingRoutes from "./routes/admin.pricing.routes.js";
+import leadRoutes from "./routes/lead.routes.js";
+import authRoutes from "./routes/auth.routes.js";
 
 const app = express();
 
 /**
- * ✅ Environment log (helps during deployments + debugging)
+ * ===============================
+ * Environment Log
+ * ===============================
  */
 console.log("Environment:", process.env.NODE_ENV || "development");
 
 /**
- * ✅ CORS (required for frontend)
- * For now allow all. Later you can restrict origin to your frontend domain.
+ * ===============================
+ * CORS
+ * ===============================
  */
 app.use(
   cors({
@@ -27,12 +35,16 @@ app.use(
 );
 
 /**
- * ✅ JSON body parser
+ * ===============================
+ * JSON Body Parser
+ * ===============================
  */
 app.use(express.json());
 
 /**
- * ✅ Basic request logging with response time
+ * ===============================
+ * Request Logger
+ * ===============================
  */
 app.use((req, res, next) => {
   const start = Date.now();
@@ -46,33 +58,58 @@ app.use((req, res, next) => {
 });
 
 /**
- * ✅ Rate limiting (recommended)
- * If you do not want rate limiting now, you can remove this block.
+ * ===============================
+ * Rate Limiter (Chat only)
+ * ===============================
  */
 const chatLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 30, // 30 requests/min per IP
+  windowMs: 60 * 1000,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, error: "Too many requests. Please try again shortly." }
+  message: {
+    success: false,
+    error: "Too many requests. Please try again shortly."
+  }
 });
+
 app.use("/api/chat", chatLimiter);
 
 /**
- * ✅ Routes
+ * ===============================
+ * API Routes
+ * ===============================
  */
+
+// Chat (Public)
 app.use("/api/chat", chatRoutes);
-app.use("/admin/pricing", adminPricingRoutes);
+
+// Leads
+app.use("/api/leads", leadRoutes);
+
+// Auth
+app.use("/api/auth", authRoutes);
+
+// Admin Pricing (Protected)
+app.use("/api/admin/pricing", adminPricingRoutes);
+app.use("/api/admin/leads", adminLeadRoutes);
 
 /**
- * ✅ Health check
+ * ===============================
+ * Health Check
+ * ===============================
  */
 app.get("/", (req, res) => {
-  res.json({ success: true, message: "RAPTOR Quote Bot API running 🚀" });
+  res.json({
+    success: true,
+    message: "RAPTOR Quote Bot API running 🚀"
+  });
 });
 
 /**
- * ✅ Global error handler (safety net)
+ * ===============================
+ * Global Error Handler
+ * ===============================
  */
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err);
@@ -83,9 +120,22 @@ app.use((err, req, res, next) => {
 });
 
 /**
- * ✅ Start server
+ * ===============================
+ * Start Server
+ * ===============================
  */
 const PORT = process.env.PORT || 5000;
+
+// Verify DB Connection
+(async () => {
+  try {
+    await pool.query("SELECT NOW()");
+    console.log("🟢 Database connection verified");
+  } catch (err) {
+    console.error("🔴 Database connection failed:", err);
+  }
+})();
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });

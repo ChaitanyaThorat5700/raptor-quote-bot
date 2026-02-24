@@ -1,22 +1,41 @@
+import { authenticate, authorizeRoles } from "../middleware/auth.middleware.js";
 import express from "express";
-import {
-  getPricingConfig,
-  savePricingConfig
-} from "../services/pricingStore.service.js";
+import pool from "../config/db.js";
 
 const router = express.Router();
 
 /**
  * GET /admin/pricing
- * View full pricing configuration
+ * Fetch full pricing configuration from DB
  */
-router.get("/", (req, res) => {
+router.get(
+  "/",
+  authenticate,
+  authorizeRoles("ADMIN"),
+  async (req, res) => {
   try {
-    const pricing = getPricingConfig();
-    return res.json(pricing);
+    const categories = await pool.query(
+      "SELECT * FROM pricing_categories WHERE is_active = true"
+    );
+
+    const multipliers = await pool.query(
+      "SELECT * FROM pricing_multipliers"
+    );
+
+    const addons = await pool.query(
+      "SELECT * FROM pricing_addons"
+    );
+
+    return res.json({
+      success: true,
+      categories: categories.rows,
+      multipliers: multipliers.rows,
+      addons: addons.rows
+    });
   } catch (error) {
     console.error("Get Pricing Error:", error);
     return res.status(500).json({
+      success: false,
       error: "Failed to load pricing configuration"
     });
   }
@@ -24,101 +43,67 @@ router.get("/", (req, res) => {
 
 /**
  * PUT /admin/pricing/category/:id
- * Update base price per sqft for a category
+ * Update base price per sqft
  */
-router.put("/category/:id", (req, res) => {
+router.put("/category/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const base_price_per_sqft = req.body?.base_price_per_sqft;
+    const { base_price_per_sqft } = req.body;
 
-    // 🔐 Validation
-    if (
-      base_price_per_sqft === undefined ||
-      typeof base_price_per_sqft !== "number" ||
-      base_price_per_sqft <= 0
-    ) {
+    if (!base_price_per_sqft || base_price_per_sqft <= 0) {
       return res.status(400).json({
-        error: "base_price_per_sqft must be a positive number"
+        success: false,
+        error: "base_price_per_sqft must be positive"
       });
     }
 
-    const config = getPricingConfig();
-    const category = config.categories.find(c => c.id === id);
-
-    if (!category) {
-      return res.status(404).json({
-        error: "Category not found"
-      });
-    }
-
-    category.base_price_per_sqft = base_price_per_sqft;
-    savePricingConfig(config);
+    await pool.query(
+      "UPDATE pricing_categories SET base_price_per_sqft = $1 WHERE id = $2",
+      [base_price_per_sqft, id]
+    );
 
     return res.json({
-      message: "Base price updated successfully",
-      category
+      success: true,
+      message: "Base price updated successfully"
     });
   } catch (error) {
     console.error("Update Base Price Error:", error);
     return res.status(500).json({
+      success: false,
       error: "Failed to update base price"
     });
   }
 });
 
 /**
- * PUT /admin/pricing/multiplier/:category/:type
- * Update multiplier for tile type (or similar fields)
+ * PUT /admin/pricing/multiplier/:id
+ * Update multiplier value
  */
-router.put("/multiplier/:category/:type", (req, res) => {
+router.put("/multiplier/:id", async (req, res) => {
   try {
-    const { category, type } = req.params;
-    const multiplier = req.body?.multiplier;
+    const { id } = req.params;
+    const { multiplier } = req.body;
 
-    // 🔐 Validation
-    if (
-      multiplier === undefined ||
-      typeof multiplier !== "number" ||
-      multiplier <= 0
-    ) {
+    if (!multiplier || multiplier <= 0) {
       return res.status(400).json({
-        error: "multiplier must be a positive number"
+        success: false,
+        error: "Multiplier must be positive"
       });
     }
 
-    const config = getPricingConfig();
-    const cat = config.categories.find(c => c.id === category);
-
-    if (!cat) {
-      return res.status(404).json({
-        error: "Category not found"
-      });
-    }
-
-    if (!cat.multipliers || !cat.multipliers.tileType) {
-      return res.status(400).json({
-        error: "Multipliers not configured for this category"
-      });
-    }
-
-    if (!(type in cat.multipliers.tileType)) {
-      return res.status(404).json({
-        error: `Multiplier type '${type}' not found`
-      });
-    }
-
-    cat.multipliers.tileType[type] = multiplier;
-    savePricingConfig(config);
+    await pool.query(
+      "UPDATE pricing_multipliers SET multiplier = $1 WHERE id = $2",
+      [multiplier, id]
+    );
 
     return res.json({
-      message: "Multiplier updated successfully",
-      category,
-      type,
-      multiplier
+      success: true,
+      message: "Multiplier updated successfully"
     });
   } catch (error) {
     console.error("Update Multiplier Error:", error);
     return res.status(500).json({
+      success: false,
       error: "Failed to update multiplier"
     });
   }

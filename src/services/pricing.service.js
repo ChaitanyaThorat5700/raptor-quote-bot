@@ -1,15 +1,16 @@
-import { getPricingConfig } from "./pricingStore.service.js";
+import { getPricingCategory } from "./pricingDb.service.js";
 
 /**
- * Calculate quotation based on latest pricing config
+ * Calculate quotation based on DB pricing
  */
-export function calculateQuote(categoryId, data) {
-  const pricingConfig = getPricingConfig();
-  const category = pricingConfig.categories.find(c => c.id === categoryId);
+export async function calculateQuote(categoryId, data) {
+  const pricingData = await getPricingCategory(categoryId);
 
-  if (!category) {
+  if (!pricingData) {
     throw new Error(`Pricing config not found for category: ${categoryId}`);
   }
+
+  const { category, multipliers, addons } = pricingData;
 
   const area = Number(data.area);
   if (!area || area <= 0) {
@@ -17,58 +18,48 @@ export function calculateQuote(categoryId, data) {
   }
 
   const breakdown = [];
-  const currency = category.currency || "INR";
-
-  // 1️⃣ Base cost
-  const baseRate = category.base_price_per_sqft;
-  let subtotal = area * baseRate;
+  let subtotal = area * Number(category.base_price_per_sqft);
 
   breakdown.push({
     label: "Base cost",
-    calculation: `${area} sqft × ₹${baseRate}`,
+    calculation: `${area} sqft × ₹${category.base_price_per_sqft}`,
     amount: subtotal
   });
 
-  // 2️⃣ Multipliers
-  if (category.multipliers) {
-    for (const [field, map] of Object.entries(category.multipliers)) {
-      const selectedValue = data[field];
-      const multiplier = map?.[selectedValue];
+  // Apply multipliers
+  for (const m of multipliers) {
+    const selectedValue = data[m.field_key];
 
-      if (multiplier && multiplier !== 1) {
-        const multipliedAmount = subtotal * multiplier;
-        breakdown.push({
-          label: `${field}: ${selectedValue}`,
-          calculation: `₹${subtotal} × ${multiplier}`,
-          amount: multipliedAmount
-        });
-        subtotal = multipliedAmount;
-      }
+    if (selectedValue === m.field_value && Number(m.multiplier) !== 1) {
+      const multipliedAmount = subtotal * Number(m.multiplier);
+      breakdown.push({
+        label: `${m.field_key}: ${selectedValue}`,
+        calculation: `₹${subtotal} × ${m.multiplier}`,
+        amount: multipliedAmount
+      });
+      subtotal = multipliedAmount;
     }
   }
 
-  // 3️⃣ Add-ons
-  if (category.addons) {
-    for (const [field, map] of Object.entries(category.addons)) {
-      const selectedValue = data[field];
-      const addonRate = map?.[selectedValue];
+  // Apply addons
+  for (const a of addons) {
+    const selectedValue = data[a.field_key];
 
-      if (addonRate && addonRate > 0) {
-        const addonAmount = area * addonRate;
-        breakdown.push({
-          label: `${field}: ${selectedValue}`,
-          calculation: `${area} sqft × ₹${addonRate}`,
-          amount: addonAmount
-        });
-        subtotal += addonAmount;
-      }
+    if (selectedValue === a.field_value && Number(a.addon_rate_per_sqft) > 0) {
+      const addonAmount = area * Number(a.addon_rate_per_sqft);
+      breakdown.push({
+        label: `${a.field_key}: ${selectedValue}`,
+        calculation: `${area} sqft × ₹${a.addon_rate_per_sqft}`,
+        amount: addonAmount
+      });
+      subtotal += addonAmount;
     }
   }
 
   return {
     category: categoryId,
     area,
-    currency,
+    currency: category.currency,
     breakdown,
     total: Math.round(subtotal)
   };
