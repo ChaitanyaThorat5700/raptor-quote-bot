@@ -4,6 +4,7 @@ import express from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import adminLeadRoutes from "./routes/admin.leads.routes.js";
+import adminDashboardRoutes from "./routes/admin.dashboard.routes.js";
 
 import pool from "./config/db.js";
 
@@ -93,6 +94,7 @@ app.use("/api/auth", authRoutes);
 // Admin Pricing (Protected)
 app.use("/api/admin/pricing", adminPricingRoutes);
 app.use("/api/admin/leads", adminLeadRoutes);
+app.use("/api/admin/dashboard", adminDashboardRoutes);
 
 /**
  * ===============================
